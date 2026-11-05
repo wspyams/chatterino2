@@ -390,6 +390,11 @@ void IrcMessageHandler::handlePrivMessage(Communi::IrcPrivateMessage *message,
         return;
     }
 
+    if (twitchChannel->delayMessage(message))
+    {
+        return;
+    }
+
     parsePrivMessageInto(message, *twitchChannel, twitchChannel);
 }
 
@@ -518,6 +523,20 @@ void IrcMessageHandler::handleClearChatMessage(Communi::IrcMessage *message)
         return;
     }
 
+    auto *twitchChannel = dynamic_cast<TwitchChannel *>(chan.get());
+    if (twitchChannel != nullptr)
+    {
+        if (clearChat.disableAllMessages)
+        {
+            twitchChannel->delayedMessages_.clear();
+        }
+        else
+        {
+            twitchChannel->removeDelayedMessagesFromUser(
+                message->tag("target-user-id").toString());
+        }
+    }
+
     auto time = calculateMessageTime(message);
     // chat has been cleared by a moderator
     if (clearChat.disableAllMessages)
@@ -586,6 +605,12 @@ void IrcMessageHandler::handleClearMessageMessage(Communi::IrcMessage *message)
     auto tags = message->tags();
 
     QString targetID = tags.getOrEmpty("target-msg-id");
+
+    auto *twitchChannel = dynamic_cast<TwitchChannel *>(chan.get());
+    if (twitchChannel != nullptr)
+    {
+        twitchChannel->removeDelayedMessage(targetID);
+    }
 
     auto msg = chan->findMessageByID(targetID);
     if (msg == nullptr)
@@ -719,6 +744,14 @@ void IrcMessageHandler::handleUserNoticeMessage(Communi::IrcMessage *message,
     {
         return;
     }
+
+    if (!message->parameter(1).isEmpty() &&
+        message->tag("msg-id").toString() != "announcement" &&
+        channel->delayMessage(message))
+    {
+        return;
+    }
+
     parseUserNoticeMessageInto(message, *channel, channel);
 }
 

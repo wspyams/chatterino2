@@ -585,6 +585,73 @@ void TwitchChannel::addKnownChannelPointReward(const ChannelPointReward &reward)
     channelPointRewards->try_emplace(reward.id, reward);
 }
 
+bool TwitchChannel::delayMessage(Communi::IrcMessage *message)
+{
+    const int delay = getSettings()->chatDelay;
+    if (delay <= 0)
+    {
+        return false;
+    }
+
+    if (message->tag("user-id") ==
+        getApp()->getAccounts()->twitch.getCurrent()->getUserId())
+    {
+        return false;
+    }
+
+    auto messageID = message->tag("id").toString();
+    this->delayedMessages_.emplace_back(message->clone());
+
+    QTimer::singleShot(delay, &this->lifetimeGuard_, [this, messageID] {
+        if (!std::ranges::any_of(
+                this->delayedMessages_, [&](const auto &delayed) {
+                    return delayed->tag("id").toString() == messageID;
+                }))
+        {
+            return;
+        }
+
+        while (!this->delayedMessages_.empty())
+        {
+            auto delayed = std::move(this->delayedMessages_.front());
+            this->delayedMessages_.erase(this->delayedMessages_.begin());
+
+            if (delayed->type() == Communi::IrcMessage::Private)
+            {
+                IrcMessageHandler::parsePrivMessageInto(
+                    static_cast<Communi::IrcPrivateMessage *>(delayed.get()),
+                    *this, this);
+            }
+            else
+            {
+                IrcMessageHandler::parseUserNoticeMessageInto(delayed.get(),
+                                                              *this, this);
+            }
+
+            if (delayed->tag("id").toString() == messageID)
+            {
+                break;
+            }
+        }
+    });
+
+    return true;
+}
+
+void TwitchChannel::removeDelayedMessage(const QString &messageID)
+{
+    std::erase_if(this->delayedMessages_, [&](const auto &delayed) {
+        return delayed->tag("id").toString() == messageID;
+    });
+}
+
+void TwitchChannel::removeDelayedMessagesFromUser(const QString &userID)
+{
+    std::erase_if(this->delayedMessages_, [&](const auto &delayed) {
+        return delayed->tag("user-id").toString() == userID;
+    });
+}
+
 bool TwitchChannel::isChannelPointRewardKnown(const QString &rewardId)
 {
     const auto &pointRewards = this->channelPointRewards_.accessConst();

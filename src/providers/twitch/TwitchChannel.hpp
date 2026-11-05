@@ -377,6 +377,13 @@ public:
     std::optional<ChannelPointReward> channelPointReward(
         const QString &rewardId) const;
 
+    /**
+     * @return true, if the message was queued and will be added after the chat delay
+     **/
+    bool delayMessage(Communi::IrcMessage *message);
+    void removeDelayedMessage(const QString &messageID);
+    void removeDelayedMessagesFromUser(const QString &userID);
+
     // Live status
     void updateStreamStatus(const std::optional<HelixStream> &helixStream,
                             bool isInitialUpdate);
@@ -580,6 +587,7 @@ private:
     UniqueAccess<std::map<QString, ChannelPointReward>> channelPointRewards_;
     boost::circular_buffer_space_optimized<QueuedRedemption>
         waitingRedemptions_{MAX_QUEUED_REDEMPTIONS};
+    std::vector<QObjectPtr<Communi::IrcMessage>> delayedMessages_;
 
     bool mod_ = false;
     bool vip_ = false;

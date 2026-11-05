@@ -365,6 +365,15 @@ void GeneralPage::initLayout(GeneralPageView &layout)
             return fuzzyToFloat(args.value, 1.f);
         });
 
+    SettingWidget::intInput("Chat delay", s.chatDelay,
+                            {
+                                .min = 0,
+                                .max = 60000,
+                                .singleStep = 500,
+                                .suffix = "ms",
+                            })
+        ->addTo(layout);
+
     SettingWidget::checkbox("Smooth scrolling", s.enableSmoothScrolling)
         ->addTo(layout);
 
